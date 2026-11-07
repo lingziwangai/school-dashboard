@@ -1,4 +1,4 @@
-"""本地大模型对接（Ollama）。
+"""大模型对接（Anthropic Claude / OpenAI 兼容 / 本地 Ollama）。
 
 设计：不是把所有日历塞进 prompt，而是「按需检索」——
 用户问到相关活动时才把那几条注入 <calendar_context>，
@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 from datetime import date, timedelta
 
 import httpx
@@ -18,6 +20,14 @@ from .recurrence import Recurrence, Stage, occurrence_dates
 
 MAX_CONTEXT_EVENTS = 8
 MAX_HISTORY_TURNS = 6
+MAX_TOKENS = 1024
+
+# 接口类型 → (默认地址, 默认模型)
+PROVIDERS = {
+    "anthropic": ("https://api.anthropic.com", "claude-sonnet-4-6"),
+    "openai": ("https://api.openai.com/v1", "gpt-4o-mini"),
+    "ollama": ("http://127.0.0.1:11434", "qwen2.5:1.5b-instruct"),
+}
 
 
 # ---------------------------------------------------------------- 配置
@@ -30,12 +40,45 @@ def _setting(key: str, default: str = "") -> str:
         return default
 
 
-def ollama_url() -> str:
-    return _setting("ollama_url", "http://127.0.0.1:11434").rstrip("/")
+def provider() -> str:
+    p = (_setting("ai_provider", "ollama") or "ollama").strip().lower()
+    return p if p in PROVIDERS else "ollama"
+
+
+def base_url() -> str:
+    p = provider()
+    default = PROVIDERS[p][0]
+    url = (_setting("ai_base_url") or "").strip().rstrip("/")
+    if not url:
+        # 老配置里 Ollama 地址存在 ollama_url 字段
+        url = (_setting("ollama_url") or default).strip() if p == "ollama" else default
+    return url.rstrip("/")
 
 
 def model_name() -> str:
-    return _setting("ai_model", "qwen2.5:1.5b-instruct")
+    return (_setting("ai_model") or PROVIDERS[provider()][1]).strip()
+
+
+def api_key() -> str:
+    """密钥优先读环境变量（Render 上配，重装不丢），其次读数据库。"""
+    names = {
+        "anthropic": ("ROBOTBOARD_AI_KEY", "ANTHROPIC_API_KEY"),
+        "openai": ("ROBOTBOARD_AI_KEY", "OPENAI_API_KEY"),
+        "ollama": ("ROBOTBOARD_AI_KEY",),
+    }[provider()]
+    for name in names:
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            return value
+    return (_setting("ai_api_key") or "").strip()
+
+
+def key_source() -> str:
+    """密钥是从哪来的：env（推荐）还是 db（老师端填的）。"""
+    for name in ("ROBOTBOARD_AI_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        if (os.environ.get(name) or "").strip():
+            return "env"
+    return "db" if api_key() else "none"
 
 
 def num_ctx() -> int:
@@ -45,13 +88,62 @@ def num_ctx() -> int:
         return 4096
 
 
+def _join(base: str, path: str) -> str:
+    """拼地址：base 结尾已经有 /v1 时不重复加。"""
+    base = base.rstrip("/")
+    if base.endswith("/v1") and path.startswith("/v1/"):
+        path = path[3:]
+    return base + path
+
+
+def _headers() -> dict:
+    key = api_key()
+    p = provider()
+    if p == "anthropic":
+        return {
+            "content-type": "application/json",
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+        }
+    if p == "openai":
+        return {"content-type": "application/json", "authorization": f"Bearer {key}"}
+    return {"content-type": "application/json"}
+
+
+def ensure_ready() -> None:
+    """云端接口必须有密钥。没配就别白跑一趟网络。"""
+    if provider() != "ollama" and not api_key():
+        raise RuntimeError("还没配置 API Key")
+
+
+_health_cache: tuple[str, float, bool] = ("", 0.0, False)
+
+
 def health() -> bool:
-    try:
-        with httpx.Client(timeout=2.0) as client:
-            resp = client.get(f"{ollama_url()}/api/tags")
-            return resp.status_code == 200
-    except Exception:
+    """能不能连上。屏幕端每 8 秒问一次，所以缓存 30 秒，别每次都发请求。"""
+    global _health_cache
+    sig = f"{provider()}|{base_url()}|{api_key()}"
+    cached_sig, ts, val = _health_cache
+    now = time.monotonic()
+    if cached_sig == sig and now - ts < 30:
+        return val
+    p = provider()
+    if p != "ollama" and not api_key():
+        _health_cache = (sig, now, False)
         return False
+    try:
+        with httpx.Client(timeout=3.0) as client:
+            if p == "anthropic":
+                resp = client.get(_join(base_url(), "/v1/models"), headers=_headers())
+            elif p == "openai":
+                resp = client.get(_join(base_url(), "/v1/models"), headers=_headers())
+            else:
+                resp = client.get(_join(base_url(), "/api/tags"))
+            ok = resp.status_code == 200
+    except Exception:
+        ok = False
+    _health_cache = (sig, now, ok)
+    return ok
 
 
 # ---------------------------------------------------------------- 检索
@@ -227,7 +319,8 @@ def _trim_history(messages: list[dict]) -> list[dict]:
     return trimmed[-MAX_HISTORY_TURNS * 2:]
 
 
-def _prepare(messages: list[dict], today: date) -> list[dict]:
+def _prepare(messages: list[dict], today: date) -> tuple[str, list[dict]]:
+    """返回 (系统提示词, 对话历史)。Anthropic 的 system 要单独一个字段传。"""
     history = _trim_history(messages)
     query = ""
     for m in reversed(history):
@@ -235,25 +328,47 @@ def _prepare(messages: list[dict], today: date) -> list[dict]:
             query = m["content"]
             break
     context = build_context(query, today)
-    return [
-        {"role": "system", "content": build_system_prompt(today, context)},
-        *history,
-    ]
+    return build_system_prompt(today, context), history
 
 
 def complete(messages: list[dict], today: date | None = None) -> str:
     today = today or date.today()
-    payload_messages = _prepare(messages, today)
+    ensure_ready()
+    system, history = _prepare(messages, today)
+    p = provider()
+
+    if p == "anthropic":
+        body = {
+            "model": model_name(),
+            "max_tokens": MAX_TOKENS,
+            "system": system,
+            "messages": history,
+        }
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(_join(base_url(), "/v1/messages"), json=body, headers=_headers())
+            resp.raise_for_status()
+            data = resp.json()
+        text = "".join(
+            block.get("text", "")
+            for block in data.get("content", [])
+            if block.get("type") == "text"
+        )
+        return _strip_think(text)
+
     body = {
         "model": model_name(),
-        "messages": payload_messages,
+        "messages": [{"role": "system", "content": system}, *history],
         "stream": False,
-        "temperature": 0.3,
-        "num_ctx": num_ctx(),
-        "num_predict": 400,
     }
+    if p == "ollama":
+        body["temperature"] = 0.3
+        body["num_ctx"] = num_ctx()
+        body["num_predict"] = 400
+    else:
+        body["temperature"] = 0.4
+        body["max_tokens"] = MAX_TOKENS
     with httpx.Client(timeout=120.0) as client:
-        resp = client.post(f"{ollama_url()}/v1/chat/completions", json=body)
+        resp = client.post(_join(base_url(), "/v1/chat/completions"), json=body, headers=_headers())
         resp.raise_for_status()
         data = resp.json()
     text = data["choices"][0]["message"].get("content", "")
@@ -267,17 +382,53 @@ def _strip_think(text: str) -> str:
 
 async def stream(messages: list[dict], today: date | None = None):
     today = today or date.today()
-    payload_messages = _prepare(messages, today)
+    ensure_ready()
+    system, history = _prepare(messages, today)
+    p = provider()
+
+    if p == "anthropic":
+        body = {
+            "model": model_name(),
+            "max_tokens": MAX_TOKENS,
+            "system": system,
+            "messages": history,
+            "stream": True,
+        }
+        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=5.0)) as client:
+            async with client.stream("POST", _join(base_url(), "/v1/messages"),
+                                     json=body, headers=_headers()) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    try:
+                        chunk = json.loads(line[5:].strip())
+                    except json.JSONDecodeError:
+                        continue
+                    kind = chunk.get("type")
+                    if kind == "content_block_delta":
+                        piece = (chunk.get("delta") or {}).get("text")
+                        if piece:
+                            yield _strip_think(piece)
+                    elif kind == "error":
+                        raise RuntimeError((chunk.get("error") or {}).get("message", "AI 出错"))
+        return
+
     body = {
         "model": model_name(),
-        "messages": payload_messages,
+        "messages": [{"role": "system", "content": system}, *history],
         "stream": True,
-        "temperature": 0.4,
-        "num_ctx": num_ctx(),
-        "num_predict": 400,
     }
+    if p == "ollama":
+        body["temperature"] = 0.4
+        body["num_ctx"] = num_ctx()
+        body["num_predict"] = 400
+    else:
+        body["temperature"] = 0.4
+        body["max_tokens"] = MAX_TOKENS
     async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=5.0)) as client:
-        async with client.stream("POST", f"{ollama_url()}/v1/chat/completions", json=body) as resp:
+        async with client.stream("POST", _join(base_url(), "/v1/chat/completions"),
+                                 json=body, headers=_headers()) as resp:
             resp.raise_for_status()
             async for line in resp.aiter_lines():
                 if not line.startswith("data:"):

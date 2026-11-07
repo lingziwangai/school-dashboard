@@ -4,20 +4,23 @@ services:
   - type: web
     name: robot-board
     runtime: python
-    plan: free
+    # starter 才有持久磁盘。数据库挂在下面那块盘上，老师发的公告才不会丢。
+    # 免费版想先用着就改成 free，但要接受重新部署后数据重置。
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /display.html
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.8"
-      # 数据库和上传照片的存放位置。挂上持久磁盘后就一直是这里，不会丢
+      # 数据库和上传照片的存放位置。必须和下面的 disk.mountPath 一致
       - key: ROBOTBOARD_DATA
         value: /opt/render/project/src/data
-
-    # 想让老师发的公告永久保留（免费版每次重新部署会重置数据库），
-    # 就把下面三行取消注释，同时把上面的 plan 改成 starter。
-    # disk:
-    #   name: robot-board-data
-    #   mountPath: /opt/render/project/src/data
-    #   sizeGB: 1
+      # AI 密钥放这里（Render 加密保存，代码和 GitHub 上都看不到）。
+      # 填了之后老师端设置页不用再填 key。留空的话就在设置页里填。
+      - key: ROBOTBOARD_AI_KEY
+        sync: false
+    disk:
+      name: robot-board-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

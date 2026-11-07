@@ -36,7 +36,8 @@ git push -u origin main
 
 Render 控制台 → **New** → **Blueprint** → 选你刚传的仓库 → Apply。
 
-它会自动读 `render.yaml`。也可以手动建（New → Web Service），填：
+它会自动读 `render.yaml`（启动命令、健康检查、环境变量、持久磁盘全在里面）。
+也可以手动建（New → Web Service），填：
 
 | 填什么 | 值 |
 |---|---|
@@ -47,15 +48,25 @@ Render 控制台 → **New** → **Blueprint** → 选你刚传的仓库 → App
 
 建完一两分钟就能访问 `https://xxx.onrender.com/display.html`。
 
-### 免费版要注意的两件事
+### 持久磁盘（保住老师发的东西）
 
-**（1）数据会重置。** 免费版的硬盘是临时的，**每次重新部署或重启，数据库会回到示例数据**。老师新发的公告会丢。
+`render.yaml` 里已经配好一块 1GB 的磁盘，挂载在 `/opt/render/project/src/data`，
+数据库和上传的照片都放这儿 —— **重新部署、重启都不会丢**。
 
-想保住数据，两个办法：
-- 在 Render 升到 **Starter**（$7/月），给服务挂一块**持久磁盘**（Disk → Add → 挂到 `/opt/render/project/src/data`），`.gitignore` 和 `render.yaml` 已经按这个路径配好了
-- 或者先在本地把 `data/board.db` 里的东西导出备份
+用之前要先把 Render 账号升到 **Starter**（$7/月），免费版挂不了磁盘。
+Blueprint 里已经写好 `plan: starter` 和 `disk:`，升级完账号直接 Apply 就行。
 
-**（2）AI 小狼会显示「未连接」。** Render 上没有本地 Ollama。要用 AI，就在老师端「设置」里把 Ollama 地址改成一台**能被公网访问的** Ollama 服务器。不配也不影响其他功能。
+不想升也行：改成 `plan: free`、把 `disk:` 几行注释掉，但**每次重新部署数据库会回到示例数据**，
+老师发的公告会丢。
+
+### AI 的密钥放哪
+
+`render.yaml` 里预留了一个环境变量 `ROBOTBOARD_AI_KEY`（`sync: false`）。
+Apply 的时候 Render 会弹一个框让你填密钥，**填进去的值是加密存的**：
+代码里看不到，GitHub 上也看不到，重新部署也不会丢。
+
+不想在部署时填也行 —— 建好服务后到 **Environment** 标签手动加一个 `ROBOTBOARD_AI_KEY` 就行。
+两种都没有的话，可以在老师端「设置」页填，会存进数据库（**这种会在重新部署时丢**）。
 
 ### 上线第一件事
 
@@ -113,7 +124,7 @@ python3 -m venv .venv
 
 ### 设置
 - 改密码
-- 改 AI 模型名、Ollama 地址、上下文长度
+- 改 AI 接口类型、API 地址、API Key、模型名，还能点「测试连接」看通没通
 - 改学校中英文名字
 - 改学年起始月份（默认 8 月 1 日）
 
@@ -143,16 +154,43 @@ python3 -m venv .venv
 
 ## 六、AI 小狼（可选）
 
-AI 用的是本地 Ollama，**不花钱、也不联网**。
+小狼支持三种接口，在老师端「设置」页切换，**换接口不用改代码**：
+
+| 接口类型 | 什么时候用 | 要填什么 |
+|---|---|---|
+| **Anthropic Claude** | 云端，最省事 | API 地址、API Key、模型名 |
+| **OpenAI 兼容** | DeepSeek、通义千问、智谱 GLM、Kimi、OpenRouter 等国产接口 | API 地址、API Key、模型名 |
+| **本地 Ollama** | 树莓派上离线跑 | 地址、模型名，不用 Key |
+
+### 接 Anthropic Claude（推荐）
+
+1. 拿到 API Key（`sk-ant-...` 开头）
+2. 老师端 → 设置 → 接口类型选 **Anthropic Claude**
+3. API 地址填 `https://api.anthropic.com`
+4. 模型名填 `claude-sonnet-4-6`
+5. API Key 填进去，点「测试连接」
+
+**更安全的做法**：把 Key 放进 Render 的环境变量 `ROBOTBOARD_AI_KEY`，
+这样老师端就不用填了，Key 也不会进数据库。设置页会显示「密钥来自环境变量」。
+
+> 换了服务商、改了地址、想清掉 Key，都到设置页处理。
+> 设置页显示的密钥只露最后 4 位，完整 Key 永远不会被回传到浏览器。
+
+### 接 OpenAI 兼容接口
+
+接口类型选 **OpenAI 兼容**，API 地址填服务商给的（**带不带 `/v1` 都行**，程序会自动处理），
+API Key 和模型名照填。
+
+### 接本地 Ollama
 
 1. 装 Ollama：https://ollama.com/download
-2. 拉一个模型（推荐中文好的小模型）：
+2. 拉一个模型：
    ```bash
    ollama pull qwen2.5:1.5b-instruct
    ```
-3. 老师端「设置」页确认 Ollama 地址是 `http://127.0.0.1:11434`
+3. 老师端「设置」里地址填 `http://127.0.0.1:11434`，模型名填上面那个
 
-**Ollama 没装或没开也没关系** —— AI 面板会显示「暂不可用」，日历和公告照常工作。
+**没配 AI 也不影响其他功能** —— AI 面板会显示「暂不可用」，日历和公告照常工作。
 
 ---
 

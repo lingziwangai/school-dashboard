@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+import httpx
 
 from . import ai as ai_mod
 from .db import (
@@ -606,6 +607,26 @@ def api_ai_health():
     return {"available": ai_mod.health(), "model": ai_mod.model_name()}
 
 
+@app.post("/api/ai/test")
+def api_ai_test(_: None = Depends(require_auth)):
+    """老师点「测试连接」：真发一句话过去，看能不能回。"""
+    try:
+        answer = ai_mod.complete([{"role": "user", "content": "用一句话说你好"}])
+        return {"ok": True, "answer": answer[:200]}
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        hint = {
+            400: "地址或模型名不对",
+            401: "密钥不对，或者没填",
+            403: "这个密钥没有权限用这个模型",
+            404: "地址或模型名不对",
+            429: "额度用完了，或者被限流",
+        }.get(status, f"接口返回 {status}")
+        return {"ok": False, "error": hint}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
 # ---------------------------------------------------------------- 登录
 
 @app.post("/api/auth/login")
@@ -999,12 +1020,24 @@ async def api_upload(file: UploadFile = File(...), _: None = Depends(require_aut
 
 # ---------------------------------------------------------------- 设置
 
+def _mask_key(key: str) -> str:
+    """只显示末尾 4 位，完整密钥永远不回传给前端。"""
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "••••"
+    return "••••" + key[-4:]
+
+
 @app.get("/api/settings")
 def api_get_settings(_: None = Depends(require_auth)):
     with db() as conn:
         return {
-            "ollama_url": get_setting(conn, "ollama_url"),
+            "ai_provider": get_setting(conn, "ai_provider", "ollama"),
+            "ai_base_url": ai_mod.base_url(),
             "ai_model": get_setting(conn, "ai_model"),
+            "ai_api_key_masked": _mask_key(ai_mod.api_key()),
+            "ai_key_source": ai_mod.key_source(),
             "ai_num_ctx": get_setting(conn, "ai_num_ctx"),
             "academic_year_start": get_setting(conn, "academic_year_start"),
             "school_name_zh": get_setting(conn, "school_name_zh"),
@@ -1015,15 +1048,20 @@ def api_get_settings(_: None = Depends(require_auth)):
 @app.put("/api/settings")
 def api_put_settings(payload: dict, _: None = Depends(require_auth)):
     with db() as conn:
-        for key in ("ollama_url", "ai_model", "ai_num_ctx", "academic_year_start",
-                    "school_name_zh", "school_name_en"):
+        for key in ("ai_provider", "ai_base_url", "ai_model", "ai_num_ctx",
+                    "academic_year_start", "school_name_zh", "school_name_en"):
             if key in payload:
-                set_setting(conn, key, str(payload[key]))
+                set_setting(conn, key, str(payload[key]).strip())
         if payload.get("new_password"):
             pwd = str(payload["new_password"])
             if len(pwd) < 4:
                 raise HTTPException(400, "新密码至少 4 位")
             set_setting(conn, "admin_password_hash", hash_password(pwd))
+        # 密钥：留空 = 不改动；clear_ai_api_key = 删掉数据库里那一份
+        if payload.get("clear_ai_api_key"):
+            set_setting(conn, "ai_api_key", "")
+        elif payload.get("ai_api_key"):
+            set_setting(conn, "ai_api_key", str(payload["ai_api_key"]).strip())
         bump_revision(conn)
     return {"ok": True}
 

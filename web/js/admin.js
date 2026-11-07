@@ -745,16 +745,83 @@ $("#postSave").addEventListener("click", async () => {
 
 // ---------------------------------------------------------------- 设置
 
+// 每种接口的默认地址和默认模型。换类型时，如果当前填的是上一家的默认值，就跟着换。
+const AI_DEFAULTS = {
+  anthropic: { url: "https://api.anthropic.com", model: "claude-sonnet-4-6" },
+  openai: { url: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+  ollama: { url: "http://127.0.0.1:11434", model: "qwen2.5:1.5b-instruct" },
+};
+
+function refreshAiHints() {
+  const p = $("#setProvider").value;
+  const isOllama = p === "ollama";
+  $("#setCtx").closest(".field").classList.toggle("hidden", !isOllama);
+  $("#setApiKey").closest(".field").classList.toggle("hidden", isOllama);
+  $("#setBaseUrl").placeholder = AI_DEFAULTS[p].url;
+}
+
 async function loadSettings() {
   const s = await api.settings().catch(() => null);
   if (!s) return;
-  $("#setOllama").value = s.ollama_url || "";
+  $("#setProvider").value = s.ai_provider || "ollama";
+  $("#setProvider").dataset.prev = $("#setProvider").value;
+  $("#setBaseUrl").value = s.ai_base_url || "";
   $("#setModel").value = s.ai_model || "";
   $("#setCtx").value = s.ai_num_ctx || 4096;
+  $("#setApiKey").value = "";
+  $("#setKeyStatus").textContent =
+    s.ai_key_source === "env"
+      ? t("settings_key_env")
+      : s.ai_api_key_masked
+        ? t("settings_key_saved", { masked: s.ai_api_key_masked })
+        : t("settings_key_none");
   $("#setSchoolZh").value = s.school_name_zh || "";
   $("#setSchoolEn").value = s.school_name_en || "";
   $("#setYearStart").value = s.academic_year_start || "08-01";
+  refreshAiHints();
 }
+
+$("#setProvider").addEventListener("change", () => {
+  const prev = $("#setProvider").dataset.prev || "";
+  const from = AI_DEFAULTS[prev];
+  const to = AI_DEFAULTS[$("#setProvider").value];
+  if (from && to) {
+    if (!$("#setBaseUrl").value.trim() || $("#setBaseUrl").value.trim() === from.url) {
+      $("#setBaseUrl").value = to.url;
+    }
+    if (!$("#setModel").value.trim() || $("#setModel").value.trim() === from.model) {
+      $("#setModel").value = to.model;
+    }
+  }
+  $("#setProvider").dataset.prev = $("#setProvider").value;
+  refreshAiHints();
+});
+
+$("#testAiBtn").addEventListener("click", async () => {
+  const btn = $("#testAiBtn");
+  const out = $("#testAiResult");
+  btn.disabled = true;
+  out.textContent = t("settings_testing");
+  try {
+    await api.saveSettings({
+      ai_provider: $("#setProvider").value,
+      ai_base_url: $("#setBaseUrl").value.trim(),
+      ai_model: $("#setModel").value.trim(),
+      ai_num_ctx: $("#setCtx").value.trim(),
+    });
+    const key = $("#setApiKey").value.trim();
+    if (key) {
+      await api.saveSettings({ ai_api_key: key });
+      $("#setApiKey").value = "";
+    }
+    const res = await api.testAi();
+    out.textContent = res.ok ? t("settings_test_ok") : `${t("settings_test_fail")}：${res.error}`;
+  } catch (err) {
+    out.textContent = `${t("settings_test_fail")}：${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 $("#saveSettingsBtn").addEventListener("click", async () => {
   const pwd1 = $("#setPwd1").value;
@@ -765,24 +832,29 @@ $("#saveSettingsBtn").addEventListener("click", async () => {
   }
   $("#pwdError").classList.add("hidden");
   const payload = {
-    ollama_url: $("#setOllama").value.trim(),
+    ai_provider: $("#setProvider").value,
+    ai_base_url: $("#setBaseUrl").value.trim(),
     ai_model: $("#setModel").value.trim(),
     ai_num_ctx: $("#setCtx").value.trim(),
     school_name_zh: $("#setSchoolZh").value.trim(),
     school_name_en: $("#setSchoolEn").value.trim(),
     academic_year_start: $("#setYearStart").value.trim(),
   };
+  const key = $("#setApiKey").value.trim();
+  if (key) payload.ai_api_key = key;
   if (pwd1) payload.new_password = pwd1;
   try {
     await api.saveSettings(payload);
     $("#setPwd1").value = "";
     $("#setPwd2").value = "";
+    $("#setApiKey").value = "";
     toast(t("saved"));
     const meta = await api.meta();
     store.meta = meta;
     store.subjects = meta.subjects;
     store.aiAvailable = meta.ai_available;
     renderAiBadge();
+    await loadSettings();
   } catch (err) {
     toast(err.message, true);
   }

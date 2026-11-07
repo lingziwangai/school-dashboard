@@ -83,4 +83,5 @@ export const api = {
     request("/api/settings", { method: "PUT", body: JSON.stringify(payload) }),
 
   aiHealth: () => request("/api/ai/health"),
+  testAi: () => request("/api/ai/test", { method: "POST" }),
 };

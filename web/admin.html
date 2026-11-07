@@ -93,8 +93,23 @@
         <div class="card settings-card">
           <h3 data-i18n="settings_ai">AI 助手</h3>
           <div class="field">
-            <label data-i18n="settings_ollama">Ollama 地址</label>
-            <input id="setOllama" placeholder="http://127.0.0.1:11434">
+            <label data-i18n="settings_provider">接口类型</label>
+            <select id="setProvider">
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="openai">OpenAI 兼容</option>
+              <option value="ollama">本地 Ollama</option>
+            </select>
+          </div>
+          <div class="field">
+            <label data-i18n="settings_base_url">API 地址</label>
+            <input id="setBaseUrl" placeholder="https://api.anthropic.com">
+            <div class="hint" data-i18n="settings_base_url_hint"></div>
+          </div>
+          <div class="field">
+            <label data-i18n="settings_api_key">API Key</label>
+            <input id="setApiKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+            <div class="hint" data-i18n="settings_api_key_hint"></div>
+            <div class="hint" id="setKeyStatus"></div>
           </div>
           <div class="field">
             <label data-i18n="settings_model">模型名称</label>
@@ -104,6 +119,11 @@
           <div class="field">
             <label data-i18n="settings_ctx">上下文长度</label>
             <input id="setCtx" type="number" min="1024" step="512">
+            <div class="hint" data-i18n="settings_ctx_hint"></div>
+          </div>
+          <div class="field">
+            <button class="ghost" id="testAiBtn" data-i18n="settings_test_ai">测试连接</button>
+            <span class="hint" id="testAiResult"></span>
           </div>
         </div>
 
