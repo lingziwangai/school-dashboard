@@ -652,17 +652,58 @@ body.view-full #sideToggle { display: none; }
 .ann-card.past { opacity: 0.55; }
 
 .ann-photo {
+  position: relative;
   flex: 0 0 40%;
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--surface-2);
+  min-height: 0;
+}
+/* 一条公告里的好几张照片：横着滑，松手停在某一张 */
+.ann-photo-track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.ann-photo-track::-webkit-scrollbar { display: none; }
+.ann-photo-track img {
+  flex: 0 0 100%;
+  height: 100%;
+  object-fit: contain;
+  scroll-snap-align: center;
+  display: block;
+}
+.ann-photo-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+}
+.ann-photo-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  display: block;
+}
+.ann-photo-dots i.active { background: #fff; }
+.ann-photo-none {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 0;
+  font-size: 32px;
+  opacity: 0.3;
 }
-.ann-photo img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.ann-photo-none { font-size: 32px; opacity: 0.3; }
 
 .ann-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ann-card-head { display: flex; align-items: baseline; gap: 10px; }
@@ -701,6 +742,26 @@ body.view-full #sideToggle { display: none; }
 .ann-dot.active { background: var(--accent); width: 18px; border-radius: 999px; }
 
 .ann-empty { color: var(--text-faint); font-size: 13px; padding: 30px; width: 100%; text-align: center; }
+
+/* 公告详情弹窗里的照片：也能左右滑 */
+.post-photos {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.post-photos::-webkit-scrollbar { display: none; }
+.post-photos img {
+  flex: 0 0 100%;
+  max-height: 46vh;
+  object-fit: contain;
+  scroll-snap-align: center;
+  border-radius: 10px;
+  background: var(--bg-deep);
+}
 
 /* ---------------- 日详情面板 ---------------- */
 .day-panel {

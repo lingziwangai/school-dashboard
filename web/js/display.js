@@ -596,10 +596,11 @@ function renderUpcoming(deadlines) {
 function openPost(id) {
   const a = store.announcements.find((x) => x.id === id);
   if (!a) return;
+  const photos = a.photos && a.photos.length ? a.photos : (a.photo_id ? [a.photo_id] : []);
   $("#postTitle").textContent = a.title;
   $("#postBody").innerHTML = `
-    ${a.photo_id ? `<img src="/api/uploads/${a.photo_id}" alt=""
-        style="width:100%;border-radius:10px;margin-bottom:14px">` : ""}
+    ${photos.length ? `<div class="post-photos">${photos.map((pid) =>
+        `<img src="/api/uploads/${pid}" alt="">`).join("")}</div>` : ""}
     <div style="white-space:pre-wrap;line-height:1.75;color:var(--text-2)">${escapeHtml(a.body)}</div>`;
   $("#postOverlay").classList.remove("hidden");
 }
@@ -624,11 +625,22 @@ function renderAnnGallery() {
     return;
   }
 
-  track.innerHTML = list.map((a) => `
+  track.innerHTML = list.map((a) => {
+    const photos = a.photos && a.photos.length ? a.photos : (a.photo_id ? [a.photo_id] : []);
+    const photoBox = photos.length
+      ? `<div class="ann-photo">
+           <div class="ann-photo-track">
+             ${photos.map((id) => `<img src="/api/uploads/${id}" alt="" loading="lazy">`).join("")}
+           </div>
+           ${photos.length > 1
+             ? `<div class="ann-photo-dots">${photos.map((_, i) =>
+                 `<i class="${i === 0 ? "active" : ""}"></i>`).join("")}</div>`
+             : ""}
+         </div>`
+      : `<div class="ann-photo ann-photo-none">📢</div>`;
+    return `
     <article class="ann-card${a.expired ? " past" : ""}" data-id="${a.id}">
-      ${a.photo_id
-        ? `<div class="ann-photo"><img src="/api/uploads/${a.photo_id}" alt="" loading="lazy"></div>`
-        : `<div class="ann-photo ann-photo-none">📢</div>`}
+      ${photoBox}
       <div class="ann-body">
         <div class="ann-card-head">
           <h4>${escapeHtml(a.title)}</h4>
@@ -640,7 +652,8 @@ function renderAnnGallery() {
           <button type="button" class="ghost ann-detail">${t("ann_detail")}</button>
         </div>
       </div>
-    </article>`).join("");
+    </article>`;
+  }).join("");
 
   $("#annDots").innerHTML = list.map((a, i) =>
     `<i class="ann-dot${i === 0 ? " active" : ""}" data-index="${i}"></i>`).join("");
@@ -648,8 +661,41 @@ function renderAnnGallery() {
   const keep = annIndex;
   annIndex = 0;
   track.scrollLeft = 0;
-  track.querySelectorAll(".ann-card").forEach((el) =>
-    el.addEventListener("click", () => openPost(Number(el.dataset.id))));
+  track.querySelectorAll(".ann-card").forEach((el) => {
+    let downX = 0;
+    let downY = 0;
+    el.addEventListener("pointerdown", (ev) => {
+      downX = ev.clientX;
+      downY = ev.clientY;
+    });
+    el.addEventListener("click", (ev) => {
+      // 滑照片的时候别顺手把详情弹出来
+      if (Math.abs(ev.clientX - downX) > 8 || Math.abs(ev.clientY - downY) > 8) return;
+      openPost(Number(el.dataset.id));
+    });
+  });
+
+  // 每条公告里的照片条：滑到第几张，小圆点跟到第几个
+  track.querySelectorAll(".ann-photo-track").forEach((strip) => {
+    const dots = strip.parentElement.querySelector(".ann-photo-dots");
+    if (!dots) return;
+    strip.addEventListener("scroll", () => {
+      clearTimeout(strip._timer);
+      strip._timer = setTimeout(() => {
+        const imgs = strip.querySelectorAll("img");
+        const mid = strip.getBoundingClientRect().left + strip.clientWidth / 2;
+        let best = 0;
+        let bestDist = Infinity;
+        imgs.forEach((im, i) => {
+          const r = im.getBoundingClientRect();
+          const d = Math.abs(r.left + r.width / 2 - mid);
+          if (d < bestDist) { bestDist = d; best = i; }
+        });
+        [...dots.children].forEach((d, i) => d.classList.toggle("active", i === best));
+      }, 90);
+    }, { passive: true });
+  });
+
   // 正在看第几条就还停在第几条，别因为来了新公告跳回第一条
   if (keep) requestAnimationFrame(() => annGoTo(keep));
 }

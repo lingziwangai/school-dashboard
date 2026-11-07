@@ -34,7 +34,7 @@ const state = {
   editing: null,        // 正在编辑的活动（null = 新建）
   editingPost: null,    // 正在编辑的公告
   photoId: null,
-  postPhotoId: null,
+  postPhotos: [],     // 公告的照片编号，第一张是封面
   stages: [],
   tagEditor: null,
   previewTimer: null,
@@ -690,7 +690,7 @@ function closePostForm() {
 
 function openPostForm(p) {
   state.editingPost = p;
-  state.postPhotoId = p ? p.photo_id : null;
+  state.postPhotos = p ? [...(p.photos || (p.photo_id ? [p.photo_id] : []))] : [];
   $("#postFormTitle").textContent = p ? t("edit") : t("new_post");
   $("#poTitleZh").value = p ? p.title_zh || "" : "";
   $("#poTitleEn").value = p ? p.title_en || "" : "";
@@ -699,17 +699,47 @@ function openPostForm(p) {
   $("#poStartsOn").value = p ? p.starts_on || todayISO() : todayISO();
   $("#poEndsOn").value = p ? p.ends_on || "" : "";
   $("#poShowCal").checked = p ? !!p.show_on_calendar : false;
-  renderPhotoPreview("#poPhotoPreview", "#poPhotoClear", state.postPhotoId);
+  renderPostPhotos();
   $("#postOverlay").classList.remove("hidden");
 }
 
+/** 公告的照片缩略图条：第一张是封面，右上角 ✕ 删掉一张 */
+function renderPostPhotos() {
+  const strip = $("#poPhotoStrip");
+  strip.innerHTML = state.postPhotos.map((id, i) => `
+    <div class="photo-thumb">
+      <img src="/api/uploads/${id}" alt="">
+      <button type="button" class="photo-remove" data-id="${id}" title="${t("delete")}">✕</button>
+      ${i === 0 ? `<span class="photo-cover">${t("post_cover")}</span>` : ""}
+    </div>`).join("");
+  strip.querySelectorAll(".photo-remove").forEach((b) =>
+    b.addEventListener("click", () => {
+      state.postPhotos = state.postPhotos.filter((x) => x !== Number(b.dataset.id));
+      renderPostPhotos();
+    }));
+}
+
 $("#poPhotoBtn").addEventListener("click", () => $("#poPhotoFile").click());
-$("#poPhotoFile").addEventListener("change", (e) =>
-  uploadPhoto(e.target.files[0], "#poPhotoPreview", "#poPhotoClear", "#poPhotoBtn",
-    (id) => { state.postPhotoId = id; }));
-$("#poPhotoClear").addEventListener("click", () => {
-  state.postPhotoId = null;
-  renderPhotoPreview("#poPhotoPreview", "#poPhotoClear", null);
+$("#poPhotoFile").addEventListener("change", async (e) => {
+  const files = [...e.target.files];
+  e.target.value = ""; // 清空，不然再选同一个文件不会触发 change
+  if (!files.length) return;
+  const btn = $("#poPhotoBtn");
+  btn.disabled = true;
+  btn.textContent = t("uploading");
+  try {
+    for (const file of files) {
+      const res = await api.upload(file);
+      state.postPhotos.push(res.id);
+    }
+    renderPostPhotos();
+    toast(t("saved"));
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t("post_add_photos");
+  }
 });
 
 $("#postSave").addEventListener("click", async () => {
@@ -724,7 +754,7 @@ $("#postSave").addEventListener("click", async () => {
     title_en: titleEn,
     body_zh: $("#poBodyZh").value,
     body_en: $("#poBodyEn").value,
-    photo_id: state.postPhotoId,
+    photo_ids: state.postPhotos,
     starts_on: $("#poStartsOn").value || null,
     ends_on: $("#poEndsOn").value || null,
     show_on_calendar: $("#poShowCal").checked,

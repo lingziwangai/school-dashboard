@@ -238,6 +238,46 @@
   background: var(--bg-deep);
 }
 
+/* ---- 公告的多张照片 ---- */
+.photo-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.photo-strip:empty { display: none; }
+.photo-thumb {
+  position: relative;
+  width: 92px;
+  height: 70px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-thumb .photo-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: rgba(10, 14, 20, 0.75);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.photo-thumb .photo-remove:hover { background: var(--danger); }
+.photo-thumb .photo-cover {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 1px 6px;
+  font-size: 10px;
+  background: var(--accent);
+  color: var(--primary-fg);
+  border-top-right-radius: 6px;
+}
+
 /* ---- 阶段编辑器 ---- */
 .stage-editor { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
 
