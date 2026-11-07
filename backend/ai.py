@@ -25,6 +25,7 @@ MAX_TOKENS = 1024
 # 接口类型 → (默认地址, 默认模型)
 PROVIDERS = {
     "anthropic": ("https://api.anthropic.com", "claude-sonnet-4-6"),
+    "minimax": ("https://api.minimaxi.com/v1", "MiniMax-M3"),
     "openai": ("https://api.openai.com/v1", "gpt-4o-mini"),
     "ollama": ("http://127.0.0.1:11434", "qwen2.5:1.5b-instruct"),
 }
@@ -63,6 +64,7 @@ def api_key() -> str:
     """密钥优先读环境变量（Render 上配，重装不丢），其次读数据库。"""
     names = {
         "anthropic": ("ROBOTBOARD_AI_KEY", "ANTHROPIC_API_KEY"),
+        "minimax": ("ROBOTBOARD_AI_KEY", "MINIMAX_API_KEY"),
         "openai": ("ROBOTBOARD_AI_KEY", "OPENAI_API_KEY"),
         "ollama": ("ROBOTBOARD_AI_KEY",),
     }[provider()]
@@ -74,10 +76,16 @@ def api_key() -> str:
 
 
 def key_source() -> str:
-    """密钥是从哪来的：env（推荐）还是 db（老师端填的）。"""
-    for name in ("ROBOTBOARD_AI_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+    """密钥从哪来的：环境变量就返回变量名，数据库就返回 db，没有返回 none。"""
+    names = {
+        "anthropic": ("ROBOTBOARD_AI_KEY", "ANTHROPIC_API_KEY"),
+        "minimax": ("ROBOTBOARD_AI_KEY", "MINIMAX_API_KEY"),
+        "openai": ("ROBOTBOARD_AI_KEY", "OPENAI_API_KEY"),
+        "ollama": ("ROBOTBOARD_AI_KEY",),
+    }[provider()]
+    for name in names:
         if (os.environ.get(name) or "").strip():
-            return "env"
+            return name
     return "db" if api_key() else "none"
 
 
@@ -105,15 +113,44 @@ def _headers() -> dict:
             "x-api-key": key,
             "anthropic-version": "2023-06-01",
         }
-    if p == "openai":
-        return {"content-type": "application/json", "authorization": f"Bearer {key}"}
-    return {"content-type": "application/json"}
+    if p == "ollama":
+        return {"content-type": "application/json"}
+    return {"content-type": "application/json", "authorization": f"Bearer {key}"}
 
 
 def ensure_ready() -> None:
     """云端接口必须有密钥。没配就别白跑一趟网络。"""
     if provider() != "ollama" and not api_key():
         raise RuntimeError("还没配置 API Key")
+
+
+def _openai_health(client: httpx.Client) -> bool:
+    """OpenAI 兼容的连通性检测。
+
+    先问 /models。有些服务商（MiniMax 的套餐接口就是）不提供这个端点，
+    那就退回发一个极短的对话，能通就算通。
+    """
+    try:
+        resp = client.get(_join(base_url(), "/v1/models"), headers=_headers())
+        if resp.status_code == 200:
+            return True
+        if resp.status_code not in (404, 405):
+            return False
+    except Exception:
+        return False
+    try:
+        resp = client.post(
+            _join(base_url(), "/v1/chat/completions"),
+            headers=_headers(),
+            json={
+                "model": model_name(),
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 1,
+            },
+        )
+        return resp.status_code == 200
+    except Exception:
+        return False
 
 
 _health_cache: tuple[str, float, bool] = ("", 0.0, False)
@@ -132,14 +169,15 @@ def health() -> bool:
         _health_cache = (sig, now, False)
         return False
     try:
-        with httpx.Client(timeout=3.0) as client:
+        with httpx.Client(timeout=5.0) as client:
             if p == "anthropic":
                 resp = client.get(_join(base_url(), "/v1/models"), headers=_headers())
-            elif p == "openai":
-                resp = client.get(_join(base_url(), "/v1/models"), headers=_headers())
+                ok = resp.status_code == 200
+            elif p in ("openai", "minimax"):
+                ok = _openai_health(client)
             else:
                 resp = client.get(_join(base_url(), "/api/tags"))
-            ok = resp.status_code == 200
+                ok = resp.status_code == 200
     except Exception:
         ok = False
     _health_cache = (sig, now, ok)

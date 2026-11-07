@@ -747,6 +747,7 @@ $("#postSave").addEventListener("click", async () => {
 
 // 每种接口的默认地址和默认模型。换类型时，如果当前填的是上一家的默认值，就跟着换。
 const AI_DEFAULTS = {
+  minimax: { url: "https://api.minimaxi.com/v1", model: "MiniMax-M3" },
   anthropic: { url: "https://api.anthropic.com", model: "claude-sonnet-4-6" },
   openai: { url: "https://api.openai.com/v1", model: "gpt-4o-mini" },
   ollama: { url: "http://127.0.0.1:11434", model: "qwen2.5:1.5b-instruct" },
@@ -770,11 +771,11 @@ async function loadSettings() {
   $("#setCtx").value = s.ai_num_ctx || 4096;
   $("#setApiKey").value = "";
   $("#setKeyStatus").textContent =
-    s.ai_key_source === "env"
-      ? t("settings_key_env")
-      : s.ai_api_key_masked
+    s.ai_key_source === "db" || s.ai_key_source === "none"
+      ? s.ai_api_key_masked
         ? t("settings_key_saved", { masked: s.ai_api_key_masked })
-        : t("settings_key_none");
+        : t("settings_key_none")
+      : t("settings_key_env", { name: s.ai_key_source });
   $("#setSchoolZh").value = s.school_name_zh || "";
   $("#setSchoolEn").value = s.school_name_en || "";
   $("#setYearStart").value = s.academic_year_start || "08-01";

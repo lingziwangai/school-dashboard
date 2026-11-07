@@ -154,15 +154,26 @@ python3 -m venv .venv
 
 ## 六、AI 小狼（可选）
 
-小狼支持三种接口，在老师端「设置」页切换，**换接口不用改代码**：
+小狼支持四种接口，在老师端「设置」页切换，**换接口不用改代码**：
 
 | 接口类型 | 什么时候用 | 要填什么 |
 |---|---|---|
+| **MiniMax** | 用的 MiniMax 套餐（Token Plan / M Plan） | API 地址、API Key、模型名 |
 | **Anthropic Claude** | 云端，最省事 | API 地址、API Key、模型名 |
 | **OpenAI 兼容** | DeepSeek、通义千问、智谱 GLM、Kimi、OpenRouter 等国产接口 | API 地址、API Key、模型名 |
 | **本地 Ollama** | 树莓派上离线跑 | 地址、模型名，不用 Key |
 
-### 接 Anthropic Claude（推荐）
+### 接 MiniMax
+
+1. 拿到 API Key
+2. 老师端 → 设置 → 接口类型选 **MiniMax**
+3. API 地址填**你订阅页面给的那个**：
+   - 国内：`https://api.minimaxi.com/v1`
+   - 海外：`https://api.minimax.io/v1`
+4. 模型名填 `MiniMax-M3`（或者你套餐里能用的那个）
+5. API Key 填进去，点「测试连接」
+
+### 接 Anthropic Claude
 
 1. 拿到 API Key（`sk-ant-...` 开头）
 2. 老师端 → 设置 → 接口类型选 **Anthropic Claude**
