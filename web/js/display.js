@@ -100,7 +100,6 @@ function renderWeekdays() {
 
 function renderLegend() {
   $("#calLegend").innerHTML = store.subjects
-    .filter((s) => s.id !== "activity")
     .map((s) => `<span><i class="dot" style="background:${s.color}"></i>${
       store.lang === "en" ? s.name_en : s.name_zh
     }</span>`)

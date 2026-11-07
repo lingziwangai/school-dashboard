@@ -22,7 +22,7 @@ SUBJECTS = [
     ("business", "商科", "Business", "#d2914a", 4),
     ("social", "社科", "Social Science", "#d1705a", 5),
     ("ap", "AP 考试", "AP Exams", "#d4bb6b", 6),
-    ("activity", "其他活动", "Activities", "#9a8f85", 7),
+    ("activity", "校园活动", "Campus Activities", "#C96FA5", 7),
 ]
 
 SCHEMA = """
