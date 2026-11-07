@@ -604,6 +604,101 @@ function openPost(id) {
   $("#postOverlay").classList.remove("hidden");
 }
 
+// ---------------------------------------------------------------- 公告大图（底部抽屉）
+
+let annIndex = 0;
+
+/** 把公告做成一张张卡片，横着滑。顶栏喇叭按钮可以开/收。 */
+function renderAnnGallery() {
+  const track = $("#annTrack");
+  const list = store.announcements || [];
+
+  $("#annCount").textContent = t("ann_count", { n: list.length });
+  const badge = $("#annBadge");
+  badge.textContent = String(list.length);
+  badge.classList.toggle("hidden", !list.length);
+
+  if (!list.length) {
+    track.innerHTML = `<div class="ann-empty">${t("announcement_empty")}</div>`;
+    $("#annDots").innerHTML = "";
+    return;
+  }
+
+  track.innerHTML = list.map((a) => `
+    <article class="ann-card${a.expired ? " past" : ""}" data-id="${a.id}">
+      ${a.photo_id
+        ? `<div class="ann-photo"><img src="/api/uploads/${a.photo_id}" alt="" loading="lazy"></div>`
+        : `<div class="ann-photo ann-photo-none">📢</div>`}
+      <div class="ann-body">
+        <div class="ann-card-head">
+          <h4>${escapeHtml(a.title)}</h4>
+          ${a.starts_on ? `<span class="ann-date">${escapeHtml(a.starts_on)}</span>` : ""}
+        </div>
+        <div class="ann-text">${escapeHtml(a.body)}</div>
+        <div class="ann-foot">
+          ${a.expired ? `<span class="ann-flag">${t("ann_expired")}</span>` : ""}
+          <button type="button" class="ghost ann-detail">${t("ann_detail")}</button>
+        </div>
+      </div>
+    </article>`).join("");
+
+  $("#annDots").innerHTML = list.map((a, i) =>
+    `<i class="ann-dot${i === 0 ? " active" : ""}" data-index="${i}"></i>`).join("");
+
+  const keep = annIndex;
+  annIndex = 0;
+  track.scrollLeft = 0;
+  track.querySelectorAll(".ann-card").forEach((el) =>
+    el.addEventListener("click", () => openPost(Number(el.dataset.id))));
+  // 正在看第几条就还停在第几条，别因为来了新公告跳回第一条
+  if (keep) requestAnimationFrame(() => annGoTo(keep));
+}
+
+function setAnnIndex(i) {
+  const dots = $("#annDots").children;
+  if (!dots.length) return;
+  annIndex = Math.max(0, Math.min(dots.length - 1, i));
+  [...dots].forEach((d, k) => d.classList.toggle("active", k === annIndex));
+}
+
+/** 把第 i 条滚到中间 */
+function annGoTo(i) {
+  const track = $("#annTrack");
+  const cards = track.querySelectorAll(".ann-card");
+  if (!cards.length) return;
+  i = Math.max(0, Math.min(cards.length - 1, i));
+  const trackRect = track.getBoundingClientRect();
+  const cardRect = cards[i].getBoundingClientRect();
+  const left = track.scrollLeft + (cardRect.left - trackRect.left) - (track.clientWidth - cardRect.width) / 2;
+  track.scrollTo({ left, behavior: "smooth" });
+  setAnnIndex(i);
+}
+
+/** 滑完之后数一下现在正对着的是第几条，把小圆点对上 */
+function trackAnnScroll() {
+  clearTimeout(trackAnnScroll._timer);
+  trackAnnScroll._timer = setTimeout(() => {
+    const track = $("#annTrack");
+    const cards = track.querySelectorAll(".ann-card");
+    if (!cards.length) return;
+    const mid = track.getBoundingClientRect().left + track.clientWidth / 2;
+    let best = 0;
+    let bestDist = Infinity;
+    cards.forEach((c, i) => {
+      const r = c.getBoundingClientRect();
+      const d = Math.abs(r.left + r.width / 2 - mid);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    setAnnIndex(best);
+  }, 90);
+}
+
+function setAnnDrawer(open) {
+  $("#annDrawer").classList.toggle("open", open);
+  $("#annToggle").classList.toggle("active", open);
+  if (open) requestAnimationFrame(() => annGoTo(annIndex));
+}
+
 // ---------------------------------------------------------------- AI 对话
 
 function aiLog(message, role = "bot") {
@@ -726,6 +821,7 @@ async function loadFeed() {
 
   renderBanner(bannerRes);
   renderUpcoming(bannerRes.upcoming || []);
+  renderAnnGallery();
   state.banner = bannerRes;
 }
 
@@ -887,6 +983,18 @@ function bindUI() {
   $("#marquee").addEventListener("click", (ev) => {
     if (ev.target.closest(".marquee-item")) return;
     $("#marquee").classList.toggle("paused");
+  });
+
+  // 公告大图抽屉：开 / 关 / 左右翻
+  $("#annToggle").addEventListener("click", () =>
+    setAnnDrawer(!$("#annDrawer").classList.contains("open")));
+  $("#annClose").addEventListener("click", () => setAnnDrawer(false));
+  $("#annPrev").addEventListener("click", () => annGoTo(annIndex - 1));
+  $("#annNext").addEventListener("click", () => annGoTo(annIndex + 1));
+  $("#annTrack").addEventListener("scroll", trackAnnScroll, { passive: true });
+  $("#annDots").addEventListener("click", (ev) => {
+    const dot = ev.target.closest(".ann-dot");
+    if (dot) annGoTo(Number(dot.dataset.index));
   });
 
   // 屏幕尺寸变了，滚动周期要重新算

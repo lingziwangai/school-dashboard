@@ -48,6 +48,14 @@
       <button class="seg-btn active" data-mode="month" data-i18n="month_view">月</button>
       <button class="seg-btn" data-mode="academic" data-i18n="academic_view">学年</button>
     </div>
+    <button class="ghost icon-btn ann-toggle" id="annToggle" title="校园公告">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 10.5v3a1.5 1.5 0 0 0 1.5 1.5H8l3.5 3.5V6.5L8 10H5.5A1.5 1.5 0 0 0 4 11.5z"></path>
+        <path d="M15.2 9.2a4 4 0 0 1 0 5.6"></path>
+        <path d="M18 6.4a8 8 0 0 1 0 11.2"></path>
+      </svg>
+      <span class="ann-toggle-badge hidden" id="annBadge">0</span>
+    </button>
     <button class="ghost icon-btn" id="sideToggle">
       <svg viewBox="0 0 24 24" class="icon-panel" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="4.5" width="18" height="15" rx="2.5"></rect>
@@ -131,6 +139,20 @@
     <div class="body" id="postBody"></div>
   </div>
 </div>
+
+<!-- 校园公告：底部抽屉，能点开/收起，横着滑看不同公告（顶上那条弹幕式的还留着） -->
+<section class="ann-drawer" id="annDrawer">
+  <header class="ann-head">
+    <h3 data-i18n="ann_gallery">公告大图</h3>
+    <span class="ann-count" id="annCount"></span>
+    <div class="spacer"></div>
+    <button class="ghost icon-btn ann-nav" id="annPrev" data-i18n-title="ann_prev" title="上一条">‹</button>
+    <button class="ghost icon-btn ann-nav" id="annNext" data-i18n-title="ann_next" title="下一条">›</button>
+    <button class="ghost" id="annClose" data-i18n="close">关闭</button>
+  </header>
+  <div class="ann-track" id="annTrack"></div>
+  <div class="ann-dots" id="annDots"></div>
+</section>
 
 <div id="toast"></div>
 <script type="module" src="/js/display.js"></script>

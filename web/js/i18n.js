@@ -23,6 +23,12 @@ const DICT = {
     announcements: "校园公告",
     announcement_empty: "暂无公告",
     banner_due: "{n} 项要到期",
+    ann_gallery: "公告大图",
+    ann_count: "{n} 条公告",
+    ann_expired: "已过期",
+    ann_detail: "查看详情",
+    ann_prev: "上一条",
+    ann_next: "下一条",
     ai_title: "小狼 AI 助手",
     ai_placeholder: "问我任何问题…",
     ai_send: "发送",
@@ -183,6 +189,12 @@ const DICT = {
     no_events: "Nothing scheduled",
     announcements: "Announcements",
     announcement_empty: "No announcements yet",
+    ann_gallery: "Announcements",
+    ann_count: "{n} announcements",
+    ann_expired: "Expired",
+    ann_detail: "View details",
+    ann_prev: "Previous",
+    ann_next: "Next",
     banner_due: "{n} deadlines coming up",
     upcoming: "Coming up",
     ai_title: "Wolf AI Assistant",
@@ -356,5 +368,8 @@ export function applyI18n(root = document) {
   });
   root.querySelectorAll("[data-i18n-ph]").forEach((el) => {
     el.placeholder = t(el.dataset.i18nPh);
+  });
+  root.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    el.title = t(el.dataset.i18nTitle);
   });
 }
