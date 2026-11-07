@@ -1,0 +1,23 @@
+# Render 部署配置（Blueprint）
+# 用法：GitHub 仓库根目录放这个文件 → Render 控制台 New → Blueprint → 选仓库
+services:
+  - type: web
+    name: robot-board
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /display.html
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      # 数据库和上传照片的存放位置。挂上持久磁盘后就一直是这里，不会丢
+      - key: ROBOTBOARD_DATA
+        value: /opt/render/project/src/data
+
+    # 想让老师发的公告永久保留（免费版每次重新部署会重置数据库），
+    # 就把下面三行取消注释，同时把上面的 plan 改成 starter。
+    # disk:
+    #   name: robot-board-data
+    #   mountPath: /opt/render/project/src/data
+    #   sizeGB: 1

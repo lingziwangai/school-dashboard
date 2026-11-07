@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>老师端 · 活动布告板</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/admin.css">
+<script>
+  // 先定好昼夜模式再画第一帧，避免闪一下错误配色
+  (function () {
+    try {
+      var s = localStorage.getItem("rb_theme");
+      document.documentElement.dataset.theme =
+        s === "light" || s === "dark" ? s
+        : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    } catch (e) { document.documentElement.dataset.theme = "dark"; }
+  })();
+</script>
+</head>
+<body class="admin-body">
+
+<!-- 登录 -->
+<div class="login-screen" id="loginScreen">
+  <form class="login-card card" id="loginForm">
+    <button type="button" class="ghost icon-btn login-theme" id="loginThemeBtn">
+      <svg viewBox="0 0 24 24" class="icon-sun" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="12" cy="12" r="4.2"></circle>
+        <path d="M12 2.6v2.3M12 19.1v2.3M2.6 12h2.3M19.1 12h2.3M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"></path>
+      </svg>
+      <svg viewBox="0 0 24 24" class="icon-moon" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.4 14.5A8.5 8.5 0 1 1 9.5 3.6a6.7 6.7 0 0 0 10.9 10.9z"></path>
+      </svg>
+    </button>
+    <h1 data-i18n="admin_login">老师登录</h1>
+    <p class="muted small" data-i18n="admin_login_hint">这个页面只有老师能改内容。屏幕上的布告板是公开的，不需要登录。</p>
+    <label data-i18n="password">密码</label>
+    <input type="password" id="loginPass" autocomplete="current-password">
+    <p class="login-error hidden" id="loginError" data-i18n="wrong_password">密码不对</p>
+    <button type="submit" class="primary" data-i18n="login">登录</button>
+  </form>
+</div>
+
+<!-- 主界面 -->
+<div class="admin-shell hidden" id="adminShell">
+  <header class="admin-topbar">
+    <h1 id="adminTitle">老师端</h1>
+    <div class="spacer"></div>
+    <span class="ai-badge" id="aiBadge"></span>
+    <button class="ghost icon-btn" id="themeBtn">
+      <svg viewBox="0 0 24 24" class="icon-sun" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="12" cy="12" r="4.2"></circle>
+        <path d="M12 2.6v2.3M12 19.1v2.3M2.6 12h2.3M19.1 12h2.3M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"></path>
+      </svg>
+      <svg viewBox="0 0 24 24" class="icon-moon" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.4 14.5A8.5 8.5 0 1 1 9.5 3.6a6.7 6.7 0 0 0 10.9 10.9z"></path>
+      </svg>
+    </button>
+    <button class="ghost" id="langBtn">EN</button>
+    <button class="ghost" id="logoutBtn" data-i18n="logout">退出登录</button>
+  </header>
+
+  <nav class="admin-tabs">
+    <button class="tab-btn active" data-tab="events" data-i18n="tab_events">竞赛与考试</button>
+    <button class="tab-btn" data-tab="posts" data-i18n="tab_posts">活动与照片</button>
+    <button class="tab-btn" data-tab="settings" data-i18n="tab_settings">设置</button>
+  </nav>
+
+  <main class="admin-main">
+    <!-- 竞赛与考试 -->
+    <section class="tab-pane" id="paneEvents">
+      <div class="pane-head">
+        <div class="spacer"></div>
+        <button class="primary" id="newEventBtn" data-i18n="new_event">新建活动</button>
+      </div>
+      <p class="hint" data-i18n="list_hint"></p>
+      <div class="event-list" id="eventList"></div>
+    </section>
+
+    <!-- 活动与照片 -->
+    <section class="tab-pane hidden" id="panePosts">
+      <div class="pane-head">
+        <div class="spacer"></div>
+        <button class="primary" id="newPostBtn" data-i18n="new_post">发布公告</button>
+      </div>
+      <div class="post-list" id="postList"></div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="tab-pane hidden" id="paneSettings">
+      <div class="settings-grid">
+        <div class="card settings-card">
+          <h3 data-i18n="settings_ai">AI 助手</h3>
+          <div class="field">
+            <label data-i18n="settings_ollama">Ollama 地址</label>
+            <input id="setOllama" placeholder="http://127.0.0.1:11434">
+          </div>
+          <div class="field">
+            <label data-i18n="settings_model">模型名称</label>
+            <input id="setModel">
+            <div class="hint" data-i18n="settings_model_hint"></div>
+          </div>
+          <div class="field">
+            <label data-i18n="settings_ctx">上下文长度</label>
+            <input id="setCtx" type="number" min="1024" step="512">
+          </div>
+        </div>
+
+        <div class="card settings-card">
+          <h3 data-i18n="settings_school">学校名称</h3>
+          <div class="field">
+            <label data-i18n="settings_school_zh">学校名称（中文）</label>
+            <input id="setSchoolZh">
+          </div>
+          <div class="field">
+            <label data-i18n="settings_school_en">学校名称（英文）</label>
+            <input id="setSchoolEn">
+          </div>
+          <div class="field">
+            <label data-i18n="settings_year">学年起始日</label>
+            <input id="setYearStart" placeholder="08-01">
+            <div class="hint" data-i18n="settings_year_hint"></div>
+          </div>
+        </div>
+
+        <div class="card settings-card">
+          <h3 data-i18n="settings_password">修改登录密码</h3>
+          <div class="field">
+            <label data-i18n="settings_password_new">新密码</label>
+            <input id="setPwd1" type="password" autocomplete="new-password">
+          </div>
+          <div class="field">
+            <label data-i18n="settings_password_confirm">再输入一次</label>
+            <input id="setPwd2" type="password" autocomplete="new-password">
+          </div>
+          <p class="login-error hidden" id="pwdError" data-i18n="password_mismatch">两次输入的密码不一样</p>
+        </div>
+      </div>
+      <div class="pane-head">
+        <div class="spacer"></div>
+        <button class="primary" id="saveSettingsBtn" data-i18n="save_all">保存设置</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 活动编辑 -->
+<div class="overlay hidden" id="eventOverlay">
+  <div class="card">
+    <header>
+      <h3 id="eventFormTitle">—</h3>
+      <div class="spacer"></div>
+      <button class="ghost" id="eventFormClose" data-i18n="close">关闭</button>
+    </header>
+    <div class="body">
+      <div class="field-grid">
+        <div class="field">
+          <label data-i18n="title">标题</label>
+          <input id="evTitleZh">
+        </div>
+        <div class="field">
+          <label data-i18n="title_en">标题（英文）</label>
+          <input id="evTitleEn">
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label data-i18n="body">详细介绍</label>
+          <textarea id="evBodyZh" data-i18n-ph="body_placeholder"></textarea>
+        </div>
+        <div class="field">
+          <label data-i18n="body_en">详细介绍（英文）</label>
+          <textarea id="evBodyEn" data-i18n-ph="body_placeholder"></textarea>
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label data-i18n="location">地点</label>
+          <input id="evLocationZh">
+        </div>
+        <div class="field">
+          <label data-i18n="location_en">地点（英文）</label>
+          <input id="evLocationEn">
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label data-i18n="category">分类</label>
+          <select id="evSubject"></select>
+        </div>
+        <div class="field">
+          <label data-i18n="cover">封面图</label>
+          <div class="cover-row">
+            <img id="evPhotoPreview" class="cover-preview hidden" alt="">
+            <input type="file" id="evPhotoFile" accept="image/*" hidden>
+            <button type="button" id="evPhotoBtn" data-i18n="upload">上传图片</button>
+            <button type="button" class="danger hidden" id="evPhotoClear" data-i18n="delete">删除</button>
+          </div>
+        </div>
+      </div>
+
+      <hr class="sep">
+
+      <h4 data-i18n="repeat">重复方式</h4>
+      <div class="field">
+        <select id="evFreq"></select>
+        <div class="hint" id="evFreqHint"></div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label data-i18n="start_date">开始日期</label>
+          <input type="date" id="evStartsOn">
+        </div>
+        <div class="field">
+          <label data-i18n="end_date">重复到</label>
+          <input type="date" id="evUntilOn">
+        </div>
+      </div>
+      <div id="evFreqExtras"></div>
+
+      <hr class="sep">
+
+      <h4 data-i18n="stages">阶段节点</h4>
+      <div class="hint" data-i18n="stages_hint"></div>
+      <div class="stage-editor" id="evStages"></div>
+      <button type="button" class="ghost" id="evAddStage" data-i18n="add_stage">加一个阶段</button>
+
+      <hr class="sep">
+
+      <h4 data-i18n="tags">感兴趣的人群标签</h4>
+      <div class="hint" data-i18n="tags_hint"></div>
+      <div id="evTagBar"></div>
+    </div>
+    <footer>
+      <button class="ghost" id="eventCancel" data-i18n="cancel">取消</button>
+      <button class="primary" id="eventSave" data-i18n="save">保存</button>
+    </footer>
+  </div>
+</div>
+
+<!-- 公告编辑 -->
+<div class="overlay hidden" id="postOverlay">
+  <div class="card">
+    <header>
+      <h3 id="postFormTitle">—</h3>
+      <div class="spacer"></div>
+      <button class="ghost" id="postFormClose" data-i18n="close">关闭</button>
+    </header>
+    <div class="body">
+      <div class="field-grid">
+        <div class="field">
+          <label data-i18n="post_title">公告标题</label>
+          <input id="poTitleZh">
+        </div>
+        <div class="field">
+          <label data-i18n="title_en">标题（英文）</label>
+          <input id="poTitleEn">
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label data-i18n="post_body">正文</label>
+          <textarea id="poBodyZh"></textarea>
+        </div>
+        <div class="field">
+          <label data-i18n="body_en">详细介绍（英文）</label>
+          <textarea id="poBodyEn"></textarea>
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label data-i18n="post_photo">照片</label>
+          <div class="cover-row">
+            <img id="poPhotoPreview" class="cover-preview hidden" alt="">
+            <input type="file" id="poPhotoFile" accept="image/*" hidden>
+            <button type="button" id="poPhotoBtn" data-i18n="upload">上传图片</button>
+            <button type="button" class="danger hidden" id="poPhotoClear" data-i18n="delete">删除</button>
+          </div>
+        </div>
+        <div class="field">
+          <label data-i18n="post_date">发布日期</label>
+          <input type="date" id="poStartsOn">
+          <label class="checkbox-row">
+            <input type="checkbox" id="poShowCal">
+            <span data-i18n="post_show_calendar">同时显示在日历上</span>
+          </label>
+        </div>
+        <div class="field">
+          <label data-i18n="post_end_date">截止日期</label>
+          <input type="date" id="poEndsOn">
+          <div class="hint" data-i18n="post_end_date_hint"></div>
+        </div>
+      </div>
+    </div>
+    <footer>
+      <button class="ghost" id="postCancel" data-i18n="cancel">取消</button>
+      <button class="primary" id="postSave" data-i18n="save">保存</button>
+    </footer>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script type="module" src="/js/admin.js"></script>
+</body>
+</html>
