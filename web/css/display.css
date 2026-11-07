@@ -500,7 +500,7 @@ body.view-full #sideToggle { display: none; }
   gap: 10px;
   min-height: 0;
 }
-.msg { max-width: 92%; font-size: 13.5px; line-height: 1.65; }
+.msg { max-width: 92%; font-size: 13.5px; line-height: 1.65; white-space: pre-wrap; }
 .msg.bot {
   align-self: flex-start;
   background: var(--surface-2);
@@ -533,6 +533,20 @@ body.view-full #sideToggle { display: none; }
   animation: blink 1s steps(2) infinite;
 }
 @keyframes blink { 50% { opacity: 0; } }
+
+/* 小狼回答里的排版：分段、列表、加粗 */
+.msg .md-line { min-height: 1.65em; }
+.msg .md-gap { height: 0.5em; }
+.msg ul { margin: 2px 0; padding-left: 1.15em; }
+.msg li { margin: 1px 0; }
+.msg strong { color: var(--text); font-weight: 600; }
+.msg code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: var(--surface-3);
+  padding: 0 4px;
+  border-radius: 4px;
+}
 
 .ai-quick {
   display: flex;

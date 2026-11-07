@@ -123,6 +123,38 @@ function escapeHtml(s) {
   ));
 }
 
+/**
+ * 把小狼的回答排版成能看的段落。
+ * 先转义再替换标签，所以模型说什么都插不进 HTML。
+ * 只认三样：换行分段、- 开头的列表、**加粗**。
+ */
+function renderAnswer(text, suffix = "") {
+  const inline = (s) => s
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  const lines = escapeHtml(text).split("\n");
+  let html = "";
+  let openList = false;
+  for (const raw of lines) {
+    const item = raw.match(/^\s*[-*•]\s+(.*)$/);
+    if (item) {
+      if (!openList) { html += "<ul>"; openList = true; }
+      html += `<li>${inline(item[1])}</li>`;
+      continue;
+    }
+    if (openList) { html += "</ul>"; openList = false; }
+    const head = raw.match(/^\s*#{1,6}\s+(.*)$/);
+    const line = head ? head[1] : raw;
+    if (!line.trim()) { html += "<div class='md-gap'></div>"; continue; }
+    html += `<div class="md-line">${inline(line)}</div>`;
+  }
+  if (openList) {
+    // 光标要落在最后一个列表项里，不能跑到列表外面
+    return html.replace(/<\/li>$/, "</li>" + suffix) + "</ul>";
+  }
+  return html + suffix;
+}
+
 /** 距离今天还有几天 → 倒计时文案。days 为负数表示已经过去。 */
 function countdownText(days) {
   if (days === 0) return t("today_in");
@@ -638,7 +670,7 @@ async function sendChat(text) {
           const obj = JSON.parse(data);
           if (obj.token) {
             answer += obj.token;
-            bubble.innerHTML = escapeHtml(answer) + '<span class="caret"></span>';
+            bubble.innerHTML = renderAnswer(answer, '<span class="caret"></span>');
             $("#aiLog").scrollTop = $("#aiLog").scrollHeight;
           }
           if (obj.error) throw new Error(obj.error);
@@ -653,7 +685,7 @@ async function sendChat(text) {
     setFace("alert");
   }
 
-  bubble.innerHTML = escapeHtml(answer.trim());
+  bubble.innerHTML = renderAnswer(answer.trim());
   state.chat.push({ role: "assistant", content: answer.trim() });
   if (state.chat.length > 12) state.chat = state.chat.slice(-12);
   state.streaming = false;
