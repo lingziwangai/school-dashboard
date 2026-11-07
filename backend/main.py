@@ -1039,6 +1039,7 @@ def api_get_settings(_: None = Depends(require_auth)):
             "ai_api_key_masked": _mask_key(ai_mod.api_key()),
             "ai_key_source": ai_mod.key_source(),
             "ai_num_ctx": get_setting(conn, "ai_num_ctx"),
+            "ai_system_prompt": get_setting(conn, "ai_system_prompt", ""),
             "academic_year_start": get_setting(conn, "academic_year_start"),
             "school_name_zh": get_setting(conn, "school_name_zh"),
             "school_name_en": get_setting(conn, "school_name_en"),
@@ -1049,6 +1050,7 @@ def api_get_settings(_: None = Depends(require_auth)):
 def api_put_settings(payload: dict, _: None = Depends(require_auth)):
     with db() as conn:
         for key in ("ai_provider", "ai_base_url", "ai_model", "ai_num_ctx",
+                    "ai_system_prompt",
                     "academic_year_start", "school_name_zh", "school_name_en"):
             if key in payload:
                 set_setting(conn, key, str(payload[key]).strip())

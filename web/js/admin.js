@@ -769,6 +769,7 @@ async function loadSettings() {
   $("#setBaseUrl").value = s.ai_base_url || "";
   $("#setModel").value = s.ai_model || "";
   $("#setCtx").value = s.ai_num_ctx || 4096;
+  $("#setPrompt").value = s.ai_system_prompt || "";
   $("#setApiKey").value = "";
   $("#setKeyStatus").textContent =
     s.ai_key_source === "db" || s.ai_key_source === "none"
@@ -809,6 +810,7 @@ $("#testAiBtn").addEventListener("click", async () => {
       ai_base_url: $("#setBaseUrl").value.trim(),
       ai_model: $("#setModel").value.trim(),
       ai_num_ctx: $("#setCtx").value.trim(),
+      ai_system_prompt: $("#setPrompt").value.trim(),
     });
     const key = $("#setApiKey").value.trim();
     if (key) {
@@ -837,6 +839,7 @@ $("#saveSettingsBtn").addEventListener("click", async () => {
     ai_base_url: $("#setBaseUrl").value.trim(),
     ai_model: $("#setModel").value.trim(),
     ai_num_ctx: $("#setCtx").value.trim(),
+    ai_system_prompt: $("#setPrompt").value.trim(),
     school_name_zh: $("#setSchoolZh").value.trim(),
     school_name_en: $("#setSchoolEn").value.trim(),
     academic_year_start: $("#setYearStart").value.trim(),
