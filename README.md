@@ -2,6 +2,8 @@
 
 给机器人用的活动布告板。给国际生看的竞赛/考试日历 + 校园公告 + AI 问答小狼。
 
+> **School Activity Board** — This newly designed automated system is built for international students. It centralizes information collection, facilitates schools' promotion of a wide range of events, and empowers students to fully access all relevant information they need.
+
 - **屏幕端**（`display.html`）：给 HDMI 屏显示。平时是日历，随时可问 AI。
 - **老师端**（`admin.html`）：老师在浏览器里加竞赛、发公告、改设置，改完自动同步到屏幕。
 
