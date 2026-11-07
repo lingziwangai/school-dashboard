@@ -128,16 +128,6 @@
           </div>
         </div>
 
-        <div class="card settings-card wide">
-          <h3 data-i18n="settings_prompt_title">小狼的提示词</h3>
-          <div class="field">
-            <label data-i18n="settings_prompt">附加要求</label>
-            <textarea id="setPrompt" rows="6" data-i18n-ph="settings_prompt_placeholder"
-              placeholder="例如：回答时先给结论，再给理由；语气更活泼一些；每次不超过 200 字。"></textarea>
-            <div class="hint" data-i18n="settings_prompt_hint"></div>
-          </div>
-        </div>
-
         <div class="card settings-card">
           <h3 data-i18n="settings_school">学校名称</h3>
           <div class="field">
@@ -166,6 +156,17 @@
             <input id="setPwd2" type="password" autocomplete="new-password">
           </div>
           <p class="login-error hidden" id="pwdError" data-i18n="password_mismatch">两次输入的密码不一样</p>
+        </div>
+
+        <!-- 提示词放在最后：占满一整行，不挤掉上面三张卡 -->
+        <div class="card settings-card wide">
+          <h3 data-i18n="settings_prompt_title">小狼的提示词</h3>
+          <div class="field">
+            <label data-i18n="settings_prompt">附加要求</label>
+            <textarea id="setPrompt" rows="6" data-i18n-ph="settings_prompt_placeholder"
+              placeholder="例如：回答时先给结论，再给理由；语气更活泼一些；每次不超过 200 字。"></textarea>
+            <div class="hint" data-i18n="settings_prompt_hint"></div>
+          </div>
         </div>
       </div>
       <div class="pane-head">
