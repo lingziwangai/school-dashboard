@@ -253,6 +253,7 @@ def api_meta():
             "academic_year_start": get_setting(conn, "academic_year_start", "08-01"),
             "school_name_zh": get_setting(conn, "school_name_zh"),
             "school_name_en": get_setting(conn, "school_name_en"),
+            "wolf_avatar_id": get_setting(conn, "wolf_avatar_id"),
             "ai_model": get_setting(conn, "ai_model"),
             "ai_available": ai_mod.health(),
         }
@@ -380,19 +381,6 @@ def announcement_expired(row, today: date) -> bool:
         return False
 
 
-def announcement_photos(conn, ann_id: int, fallback: int | None = None) -> list[int]:
-    """一条公告的全部照片。第一张就是封面。"""
-    rows = conn.execute(
-        "SELECT upload_id FROM announcement_photos WHERE announcement_id = ? "
-        "ORDER BY sort_order, upload_id",
-        (ann_id,),
-    ).fetchall()
-    ids = [r["upload_id"] for r in rows]
-    if not ids and fallback:
-        ids = [fallback]
-    return ids
-
-
 def announcement_payload(conn, row, lang: str) -> dict:
     title, title_src = pick(lang, row["title_zh"], row["title_en"])
     body, body_src = pick(lang, row["body_zh"], row["body_en"])
@@ -404,7 +392,6 @@ def announcement_payload(conn, row, lang: str) -> dict:
         "body": body,
         "body_src": body_src,
         "photo_id": row["photo_id"],
-        "photos": announcement_photos(conn, row["id"], row["photo_id"]),
         "starts_on": row["starts_on"],
         "ends_on": row["ends_on"],
         "show_on_calendar": bool(row["show_on_calendar"]),
@@ -950,40 +937,13 @@ def api_set_tags(event_id: int, payload: dict, _: None = Depends(require_auth)):
 
 # ---------------------------------------------------------------- 公告管理
 
-def _clean_photo_ids(raw) -> list[int]:
-    """把前端传来的照片编号洗干净：去重、只留正整数、保持顺序。"""
-    out: list[int] = []
-    for item in raw or []:
-        try:
-            v = int(item)
-        except (TypeError, ValueError):
-            continue
-        if v > 0 and v not in out:
-            out.append(v)
-    return out
-
-
-def _write_announcement_photos(conn, ann_id: int, photo_ids: list[int]) -> None:
-    conn.execute("DELETE FROM announcement_photos WHERE announcement_id = ?", (ann_id,))
-    for i, pid in enumerate(photo_ids):
-        # 照片要是已经被删了，就跳过，别把数据库搞坏
-        conn.execute(
-            "INSERT OR REPLACE INTO announcement_photos(announcement_id, upload_id, sort_order) "
-            "SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM uploads WHERE id = ?)",
-            (ann_id, pid, i, pid),
-        )
-
-
 @app.post("/api/announcements")
 def api_create_announcement(payload: dict, _: None = Depends(require_auth)):
     title_zh = (payload.get("title_zh") or "").strip()
     title_en = (payload.get("title_en") or "").strip()
     if not title_zh and not title_en:
         raise HTTPException(400, "标题不能为空")
-    photo_ids = _clean_photo_ids(payload.get("photo_ids"))
-    if not photo_ids and payload.get("photo_id"):
-        photo_ids = _clean_photo_ids([payload.get("photo_id")])
-    cover = photo_ids[0] if photo_ids else None
+    cover = payload.get("photo_id") or None
     ts = now()
     with db() as conn:
         cur = conn.execute(
@@ -994,7 +954,6 @@ def api_create_announcement(payload: dict, _: None = Depends(require_auth)):
              cover, payload.get("starts_on"), payload.get("ends_on"),
              1 if payload.get("show_on_calendar") else 0, ts, ts),
         )
-        _write_announcement_photos(conn, cur.lastrowid, photo_ids)
         bump_revision(conn)
     return {"id": cur.lastrowid}
 
@@ -1013,11 +972,8 @@ def api_update_announcement(ann_id: int, payload: dict,
         for key in ("title_zh", "title_en", "body_zh", "body_en", "starts_on", "ends_on"):
             if key in payload:
                 fields[key] = payload[key]
-        if "photo_ids" in payload:
-            photo_ids = _clean_photo_ids(payload.get("photo_ids"))
-            fields["photo_id"] = photo_ids[0] if photo_ids else None
-        elif "photo_id" in payload:
-            fields["photo_id"] = payload["photo_id"]
+        if "photo_id" in payload:
+            fields["photo_id"] = payload["photo_id"] or None
         if "show_on_calendar" in payload:
             fields["show_on_calendar"] = 1 if payload["show_on_calendar"] else 0
         if fields:
@@ -1025,8 +981,6 @@ def api_update_announcement(ann_id: int, payload: dict,
             fields["updated_at"] = now()
             sets = ", ".join(f"{k} = :{k}" for k in fields)
             conn.execute(f"UPDATE announcements SET {sets} WHERE id = :id", {**fields, "id": ann_id})
-        if "photo_ids" in payload:
-            _write_announcement_photos(conn, ann_id, photo_ids)
         bump_revision(conn)
     return {"ok": True, "version": row["version"] + 1}
 
@@ -1091,6 +1045,7 @@ def api_get_settings(_: None = Depends(require_auth)):
             "academic_year_start": get_setting(conn, "academic_year_start"),
             "school_name_zh": get_setting(conn, "school_name_zh"),
             "school_name_en": get_setting(conn, "school_name_en"),
+            "wolf_avatar_id": get_setting(conn, "wolf_avatar_id"),
         }
 
 
@@ -1112,6 +1067,20 @@ def api_put_settings(payload: dict, _: None = Depends(require_auth)):
             set_setting(conn, "ai_api_key", "")
         elif payload.get("ai_api_key"):
             set_setting(conn, "ai_api_key", str(payload["ai_api_key"]).strip())
+        # 小狼头像：空字符串 = 恢复默认的小狼
+        if "wolf_avatar_id" in payload:
+            raw = payload.get("wolf_avatar_id")
+            if raw in (None, "", 0, "0"):
+                set_setting(conn, "wolf_avatar_id", "")
+            else:
+                try:
+                    avatar_id = int(raw)
+                except (TypeError, ValueError):
+                    raise HTTPException(400, "头像编号不对")
+                exists = conn.execute("SELECT 1 FROM uploads WHERE id = ?", (avatar_id,)).fetchone()
+                if not exists:
+                    raise HTTPException(400, "找不到这张图片，请重新上传")
+                set_setting(conn, "wolf_avatar_id", str(avatar_id))
         bump_revision(conn)
     return {"ok": True}
 

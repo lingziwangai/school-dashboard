@@ -118,14 +118,6 @@ CREATE TABLE IF NOT EXISTS uploads (
     created_at    TEXT NOT NULL
 );
 
--- 一条公告可以挂好几张照片，第一张同时也是封面（announcements.photo_id）
-CREATE TABLE IF NOT EXISTS announcement_photos (
-    announcement_id INTEGER NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
-    upload_id      INTEGER NOT NULL REFERENCES uploads(id) ON DELETE CASCADE,
-    sort_order     INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (announcement_id, upload_id)
-);
-
 CREATE TABLE IF NOT EXISTS face_states (
     id         INTEGER PRIMARY KEY CHECK (id = 1),
     expression TEXT NOT NULL,
@@ -137,7 +129,6 @@ CREATE INDEX IF NOT EXISTS idx_events_recurrence ON events(recurrence_id);
 CREATE INDEX IF NOT EXISTS idx_stages_event ON stages(event_id);
 CREATE INDEX IF NOT EXISTS idx_tags_event ON event_tags(event_id);
 CREATE INDEX IF NOT EXISTS idx_ann_starts ON announcements(starts_on);
-CREATE INDEX IF NOT EXISTS idx_annphotos_ann ON announcement_photos(announcement_id);
 """
 
 DEFAULT_SETTINGS = {
@@ -218,12 +209,6 @@ def now_iso() -> str:
 def init_db() -> None:
     with db() as conn:
         conn.executescript(SCHEMA)
-        # 老公告只有一张 photo_id，把它搬进多照片表；搬过的下次不会再搬
-        conn.execute(
-            "INSERT OR IGNORE INTO announcement_photos(announcement_id, upload_id, sort_order) "
-            "SELECT a.id, a.photo_id, 0 FROM announcements a "
-            "JOIN uploads u ON u.id = a.photo_id WHERE a.photo_id IS NOT NULL"
-        )
         for sid, zh, en, color, order in SUBJECTS:
             conn.execute(
                 "INSERT INTO subjects(id, name_zh, name_en, color, sort_order) "

@@ -146,6 +146,24 @@
         </div>
 
         <div class="card settings-card">
+          <h3 data-i18n="settings_avatar">小狼头像</h3>
+          <div class="field">
+            <div class="avatar-row">
+              <div class="avatar-preview" id="setAvatarPreview">
+                <img id="setAvatarImg" alt="">
+                <span id="setAvatarFallback">🐺</span>
+              </div>
+              <div class="avatar-btns">
+                <input type="file" id="setAvatarFile" accept="image/*" hidden>
+                <button type="button" id="setAvatarBtn" data-i18n="avatar_upload">上传头像</button>
+                <button type="button" class="danger hidden" id="setAvatarClear" data-i18n="avatar_clear">恢复默认</button>
+              </div>
+            </div>
+            <div class="hint" data-i18n="avatar_hint"></div>
+          </div>
+        </div>
+
+        <div class="card settings-card">
           <h3 data-i18n="settings_password">修改登录密码</h3>
           <div class="field">
             <label data-i18n="settings_password_new">新密码</label>
@@ -303,10 +321,12 @@
       <div class="field-grid">
         <div class="field">
           <label data-i18n="post_photo">照片</label>
-          <div class="photo-strip" id="poPhotoStrip"></div>
-          <input type="file" id="poPhotoFile" accept="image/*" hidden multiple>
-          <button type="button" id="poPhotoBtn" data-i18n="post_add_photos">添加照片</button>
-          <div class="hint" data-i18n="post_photos_hint"></div>
+          <div class="cover-row">
+            <img id="poPhotoPreview" class="cover-preview hidden" alt="">
+            <input type="file" id="poPhotoFile" accept="image/*" hidden>
+            <button type="button" id="poPhotoBtn" data-i18n="upload">上传图片</button>
+            <button type="button" class="danger hidden" id="poPhotoClear" data-i18n="delete">删除</button>
+          </div>
         </div>
         <div class="field">
           <label data-i18n="post_date">发布日期</label>

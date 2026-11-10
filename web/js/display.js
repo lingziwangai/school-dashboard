@@ -25,6 +25,11 @@ const state = {
 
 const wolf = createWolf($("#wolf"));
 
+/** 老师换了小狼头像，屏幕端就跟着换。 */
+function applyWolfAvatar() {
+  wolf.setAvatar(store.meta?.wolf_avatar_id || null);
+}
+
 // ---------------------------------------------------------------- 工具
 
 function toast(message, isError = false) {
@@ -596,11 +601,9 @@ function renderUpcoming(deadlines) {
 function openPost(id) {
   const a = store.announcements.find((x) => x.id === id);
   if (!a) return;
-  const photos = a.photos && a.photos.length ? a.photos : (a.photo_id ? [a.photo_id] : []);
   $("#postTitle").textContent = a.title;
   $("#postBody").innerHTML = `
-    ${photos.length ? `<div class="post-photos">${photos.map((pid) =>
-        `<img src="/api/uploads/${pid}" alt="">`).join("")}</div>` : ""}
+    ${a.photo_id ? `<div class="post-photos"><img src="/api/uploads/${a.photo_id}" alt=""></div>` : ""}
     <div style="white-space:pre-wrap;line-height:1.75;color:var(--text-2)">${escapeHtml(a.body)}</div>`;
   $("#postOverlay").classList.remove("hidden");
 }
@@ -626,17 +629,8 @@ function renderAnnGallery() {
   }
 
   track.innerHTML = list.map((a) => {
-    const photos = a.photos && a.photos.length ? a.photos : (a.photo_id ? [a.photo_id] : []);
-    const photoBox = photos.length
-      ? `<div class="ann-photo">
-           <div class="ann-photo-track">
-             ${photos.map((id) => `<img src="/api/uploads/${id}" alt="" loading="lazy">`).join("")}
-           </div>
-           ${photos.length > 1
-             ? `<div class="ann-photo-dots">${photos.map((_, i) =>
-                 `<i class="${i === 0 ? "active" : ""}"></i>`).join("")}</div>`
-             : ""}
-         </div>`
+    const photoBox = a.photo_id
+      ? `<div class="ann-photo"><img src="/api/uploads/${a.photo_id}" alt="" loading="lazy"></div>`
       : `<div class="ann-photo ann-photo-none">📢</div>`;
     return `
     <article class="ann-card${a.expired ? " past" : ""}" data-id="${a.id}">
@@ -673,27 +667,6 @@ function renderAnnGallery() {
       if (Math.abs(ev.clientX - downX) > 8 || Math.abs(ev.clientY - downY) > 8) return;
       openPost(Number(el.dataset.id));
     });
-  });
-
-  // 每条公告里的照片条：滑到第几张，小圆点跟到第几个
-  track.querySelectorAll(".ann-photo-track").forEach((strip) => {
-    const dots = strip.parentElement.querySelector(".ann-photo-dots");
-    if (!dots) return;
-    strip.addEventListener("scroll", () => {
-      clearTimeout(strip._timer);
-      strip._timer = setTimeout(() => {
-        const imgs = strip.querySelectorAll("img");
-        const mid = strip.getBoundingClientRect().left + strip.clientWidth / 2;
-        let best = 0;
-        let bestDist = Infinity;
-        imgs.forEach((im, i) => {
-          const r = im.getBoundingClientRect();
-          const d = Math.abs(r.left + r.width / 2 - mid);
-          if (d < bestDist) { bestDist = d; best = i; }
-        });
-        [...dots.children].forEach((d, i) => d.classList.toggle("active", i === best));
-      }, 90);
-    }, { passive: true });
   });
 
   // 正在看第几条就还停在第几条，别因为来了新公告跳回第一条
@@ -905,6 +878,10 @@ async function pollSync() {
     const { revision } = await api.version();
     if (revision === lastRevision) return;
     lastRevision = revision;
+    // 内容变了，学校名、小狼头像这些设置也可能刚改过，一并拉回来
+    store.meta = await api.meta();
+    applySchoolName();
+    applyWolfAvatar();
     await loadRange();
     await loadFeed();
     if (state.selected) openDay(state.selected);
@@ -1075,6 +1052,7 @@ async function init() {
     store.subjects = store.meta.subjects;
     store.aiAvailable = store.meta.ai_available;
     applySchoolName();
+    applyWolfAvatar();
     $("#aiStatus").textContent = store.aiAvailable
       ? `${t("ai_online")}` : t("ai_offline");
     $("#aiStatus").className = `ai-status ${store.aiAvailable ? "online" : "offline"}`;

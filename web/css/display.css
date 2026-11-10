@@ -30,6 +30,16 @@
   opacity: 0.85;
 }
 .topbar .wolf-wrap { width: 62px; height: 62px; flex: none; }
+.topbar .wolf-art { width: 100%; height: 100%; }
+.topbar .wolf-art svg { width: 100%; height: 100%; display: block; }
+.topbar .wolf-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+  background: var(--bg-deep);
+}
 .topbar-title { flex: 1; min-width: 0; }
 .topbar-title h1 {
   font-family: var(--font-serif);
@@ -659,42 +669,14 @@ body.view-full #sideToggle { display: none; }
   background: var(--surface-2);
   min-height: 0;
 }
-/* 一条公告里的好几张照片：横着滑，松手停在某一张 */
-.ann-photo-track {
+.ann-photo img {
   position: absolute;
   inset: 0;
-  display: flex;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-}
-.ann-photo-track::-webkit-scrollbar { display: none; }
-.ann-photo-track img {
-  flex: 0 0 100%;
+  width: 100%;
   height: 100%;
   object-fit: contain;
-  scroll-snap-align: center;
   display: block;
 }
-.ann-photo-dots {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 6px;
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  pointer-events: none;
-}
-.ann-photo-dots i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
-  display: block;
-}
-.ann-photo-dots i.active { background: #fff; }
 .ann-photo-none {
   position: absolute;
   inset: 0;
@@ -743,22 +725,16 @@ body.view-full #sideToggle { display: none; }
 
 .ann-empty { color: var(--text-faint); font-size: 13px; padding: 30px; width: 100%; text-align: center; }
 
-/* 公告详情弹窗里的照片：也能左右滑 */
+/* 公告详情弹窗里的照片 */
 .post-photos {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  border-radius: 10px;
   margin-bottom: 14px;
+  border-radius: 10px;
 }
-.post-photos::-webkit-scrollbar { display: none; }
 .post-photos img {
-  flex: 0 0 100%;
+  display: block;
+  width: 100%;
   max-height: 46vh;
   object-fit: contain;
-  scroll-snap-align: center;
   border-radius: 10px;
   background: var(--bg-deep);
 }

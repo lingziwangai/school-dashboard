@@ -121,8 +121,10 @@ const SVG = `
 </svg>`;
 
 export function createWolf(container) {
-  container.innerHTML = SVG;
+  container.innerHTML = `<img class="wolf-avatar hidden" alt=""><div class="wolf-art">${SVG}</div>`;
   const root = container.querySelector("svg");
+  const avatar = container.querySelector(".wolf-avatar");
+  const art = container.querySelector(".wolf-art");
 
   function setExpression(name) {
     if (!EXPRESSIONS.includes(name)) name = "idle";
@@ -130,6 +132,19 @@ export function createWolf(container) {
     container.dataset.expression = name;
   }
 
+  /** 老师传了自定义头像就用照片，否则用画的那只狼。 */
+  function setAvatar(uploadId) {
+    if (uploadId) {
+      avatar.src = `/api/uploads/${uploadId}`;
+      avatar.classList.remove("hidden");
+      art.classList.add("hidden");
+    } else {
+      avatar.removeAttribute("src");
+      avatar.classList.add("hidden");
+      art.classList.remove("hidden");
+    }
+  }
+
   setExpression("idle");
-  return { setExpression, element: root };
+  return { setExpression, setAvatar, element: root };
 }

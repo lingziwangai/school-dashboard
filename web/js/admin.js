@@ -34,7 +34,8 @@ const state = {
   editing: null,        // 正在编辑的活动（null = 新建）
   editingPost: null,    // 正在编辑的公告
   photoId: null,
-  postPhotos: [],     // 公告的照片编号，第一张是封面
+  postPhotoId: null,  // 公告的照片编号
+  wolfAvatarId: null, // 小狼头像的图片编号，null = 用默认那只狼
   stages: [],
   tagEditor: null,
   previewTimer: null,
@@ -690,7 +691,7 @@ function closePostForm() {
 
 function openPostForm(p) {
   state.editingPost = p;
-  state.postPhotos = p ? [...(p.photos || (p.photo_id ? [p.photo_id] : []))] : [];
+  state.postPhotoId = p ? p.photo_id || null : null;
   $("#postFormTitle").textContent = p ? t("edit") : t("new_post");
   $("#poTitleZh").value = p ? p.title_zh || "" : "";
   $("#poTitleEn").value = p ? p.title_en || "" : "";
@@ -699,47 +700,17 @@ function openPostForm(p) {
   $("#poStartsOn").value = p ? p.starts_on || todayISO() : todayISO();
   $("#poEndsOn").value = p ? p.ends_on || "" : "";
   $("#poShowCal").checked = p ? !!p.show_on_calendar : false;
-  renderPostPhotos();
+  renderPhotoPreview("#poPhotoPreview", "#poPhotoClear", state.postPhotoId);
   $("#postOverlay").classList.remove("hidden");
 }
 
-/** 公告的照片缩略图条：第一张是封面，右上角 ✕ 删掉一张 */
-function renderPostPhotos() {
-  const strip = $("#poPhotoStrip");
-  strip.innerHTML = state.postPhotos.map((id, i) => `
-    <div class="photo-thumb">
-      <img src="/api/uploads/${id}" alt="">
-      <button type="button" class="photo-remove" data-id="${id}" title="${t("delete")}">✕</button>
-      ${i === 0 ? `<span class="photo-cover">${t("post_cover")}</span>` : ""}
-    </div>`).join("");
-  strip.querySelectorAll(".photo-remove").forEach((b) =>
-    b.addEventListener("click", () => {
-      state.postPhotos = state.postPhotos.filter((x) => x !== Number(b.dataset.id));
-      renderPostPhotos();
-    }));
-}
-
 $("#poPhotoBtn").addEventListener("click", () => $("#poPhotoFile").click());
-$("#poPhotoFile").addEventListener("change", async (e) => {
-  const files = [...e.target.files];
-  e.target.value = ""; // 清空，不然再选同一个文件不会触发 change
-  if (!files.length) return;
-  const btn = $("#poPhotoBtn");
-  btn.disabled = true;
-  btn.textContent = t("uploading");
-  try {
-    for (const file of files) {
-      const res = await api.upload(file);
-      state.postPhotos.push(res.id);
-    }
-    renderPostPhotos();
-    toast(t("saved"));
-  } catch (err) {
-    toast(err.message, true);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = t("post_add_photos");
-  }
+$("#poPhotoFile").addEventListener("change", (e) =>
+  uploadPhoto(e.target.files[0], "#poPhotoPreview", "#poPhotoClear", "#poPhotoBtn",
+    (id) => { state.postPhotoId = id; }));
+$("#poPhotoClear").addEventListener("click", () => {
+  state.postPhotoId = null;
+  renderPhotoPreview("#poPhotoPreview", "#poPhotoClear", null);
 });
 
 $("#postSave").addEventListener("click", async () => {
@@ -754,7 +725,7 @@ $("#postSave").addEventListener("click", async () => {
     title_en: titleEn,
     body_zh: $("#poBodyZh").value,
     body_en: $("#poBodyEn").value,
-    photo_ids: state.postPhotos,
+    photo_id: state.postPhotoId,
     starts_on: $("#poStartsOn").value || null,
     ends_on: $("#poEndsOn").value || null,
     show_on_calendar: $("#poShowCal").checked,
@@ -810,8 +781,61 @@ async function loadSettings() {
   $("#setSchoolZh").value = s.school_name_zh || "";
   $("#setSchoolEn").value = s.school_name_en || "";
   $("#setYearStart").value = s.academic_year_start || "08-01";
+  state.wolfAvatarId = s.wolf_avatar_id ? Number(s.wolf_avatar_id) : null;
+  renderAvatarPreview();
   refreshAiHints();
 }
+
+// ---------------------------------------------------------------- 小狼头像
+
+/** 有自定义头像就显示照片，没有就显示默认那只狼。 */
+function renderAvatarPreview() {
+  const box = $("#setAvatarPreview");
+  const img = $("#setAvatarImg");
+  if (state.wolfAvatarId) {
+    img.src = `/api/uploads/${state.wolfAvatarId}`;
+    box.classList.add("has-img");
+    $("#setAvatarClear").classList.remove("hidden");
+  } else {
+    img.removeAttribute("src");
+    box.classList.remove("has-img");
+    $("#setAvatarClear").classList.add("hidden");
+  }
+}
+
+$("#setAvatarBtn").addEventListener("click", () => $("#setAvatarFile").click());
+
+$("#setAvatarFile").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = ""; // 清空，不然再选同一个文件不会触发 change
+  if (!file) return;
+  const btn = $("#setAvatarBtn");
+  btn.disabled = true;
+  btn.textContent = t("uploading");
+  try {
+    const res = await api.upload(file);
+    await api.saveSettings({ wolf_avatar_id: res.id });
+    state.wolfAvatarId = res.id;
+    renderAvatarPreview();
+    toast(t("saved"));
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t("avatar_upload");
+  }
+});
+
+$("#setAvatarClear").addEventListener("click", async () => {
+  try {
+    await api.saveSettings({ wolf_avatar_id: "" });
+    state.wolfAvatarId = null;
+    renderAvatarPreview();
+    toast(t("saved"));
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 
 $("#setProvider").addEventListener("change", () => {
   const prev = $("#setProvider").dataset.prev || "";
